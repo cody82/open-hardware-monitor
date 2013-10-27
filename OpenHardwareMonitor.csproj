@@ -34,6 +34,8 @@
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
+    <TargetFrameworkProfile>
+    </TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -66,6 +68,8 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration.Install" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Design" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
     <Reference Include="System.Windows.Forms" />
@@ -110,6 +114,12 @@
     </Compile>
     <Compile Include="GUI\SensorGadget.cs" />
     <Compile Include="GUI\SensorNotifyIcon.cs" />
+    <Compile Include="GUI\SerialForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="GUI\SerialForm.Designer.cs">
+      <DependentUpon>SerialForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="GUI\ShowDesktop.cs" />
     <Compile Include="GUI\SplitContainerAdv.cs">
       <SubType>Component</SubType>
@@ -145,6 +155,7 @@
     <Compile Include="GUI\SensorNode.cs" />
     <Compile Include="Utilities\EmbeddedResources.cs" />
     <Compile Include="Utilities\IconFactory.cs" />
+    <Compile Include="Utilities\Serial.cs" />
     <Compile Include="WMI\Hardware.cs" />
     <Compile Include="WMI\IWmiObject.cs" />
     <Compile Include="WMI\Sensor.cs" />
@@ -159,6 +170,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="GUI\PortForm.resx">
       <DependentUpon>PortForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="GUI\SerialForm.resx">
+      <DependentUpon>SerialForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Resources\ati.png">
     </EmbeddedResource>

@@ -24,6 +24,9 @@ using OpenHardwareMonitor.Hardware;
 using OpenHardwareMonitor.WMI;
 using OpenHardwareMonitor.Utilities;
 
+using System.Linq;
+using System.Text;
+
 namespace OpenHardwareMonitor.GUI {
   public partial class MainForm : Form {
 
@@ -65,6 +68,9 @@ namespace OpenHardwareMonitor.GUI {
 
     private UserOption runWebServer;
     private HttpServer server;
+
+    private UserOption runSerial;
+    private Serial serial;
 
     private UserOption logSensors;
     private UserRadioGroup loggingInterval;
@@ -281,6 +287,16 @@ namespace OpenHardwareMonitor.GUI {
           server.StartHTTPListener();
         else
           server.StopHTTPListener();
+      };
+
+      serial = new Serial();
+      runSerial = new UserOption("runSerialMenuItem", false, runSerialMenuItem, settings);
+      runSerial.Changed += delegate(object sender, EventArgs e)
+      {
+          if (runSerial.Value)
+              serial.Open();
+          else
+              serial.Close();
       };
 
       logSensors = new UserOption("logSensorsMenuItem", false, logSensorsMenuItem,
@@ -523,24 +539,154 @@ namespace OpenHardwareMonitor.GUI {
       Close();
     }
 
+    float MaxTemp(Computer computer, HardwareType type)
+    {
+        var gpus = computer.Hardware.Where(x => x.HardwareType == type).ToArray();
+        if (gpus.Any())
+        {
+            float t = 0;
+            foreach (var gpu in gpus)
+            {
+                var temps = gpu.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                if (temps.Any())
+                {
+                    var temp = temps.Max(x => x.Value.Value);
+                    t = Math.Max(temp, t);
+                }
+
+                foreach (var sh in gpu.SubHardware)
+                {
+                    temps = sh.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                    if (temps.Any())
+                    {
+                        var temp = temps.Max(x => x.Value.Value);
+                        t = Math.Max(temp, t);
+                    }
+                }
+            }
+
+            return t;
+        }
+        else return 0;
+    }
+
+    float AvgTemp(Computer computer, HardwareType type)
+    {
+        var gpus = computer.Hardware.Where(x => x.HardwareType == type).ToArray();
+        if (gpus.Any())
+        {
+            int n = 0;
+            float t = 0;
+            foreach (var gpu in gpus)
+            {
+                var temps = gpu.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                if (temps.Any())
+                {
+                    var temp = temps.Average(x => x.Value.Value);
+                    t += temp;
+                    n++;
+                }
+
+                foreach (var sh in gpu.SubHardware)
+                {
+                    temps = sh.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                    if (temps.Any())
+                    {
+                        var temp = temps.Average(x => x.Value.Value);
+                        t += temp;
+                        n++;
+                    }
+                }
+            }
+
+            if (n > 0)
+                return t / (float)n;
+            else
+                return 0;
+        }
+        else return 0;
+    }
+
     private int delayCount = 0;
-    private void timer_Tick(object sender, EventArgs e) {
-      computer.Accept(updateVisitor);
-      treeView.Invalidate();
-      plotPanel.InvalidatePlot();
-      systemTray.Redraw();
-      if (gadget != null)
-        gadget.Redraw();
+    private void timer_Tick(object sender, EventArgs e)
+    {
+        computer.Accept(updateVisitor);
 
-      if (wmiProvider != null)
-        wmiProvider.Update();
+        {
+            string tmp = "";
+            tmp += string.Format("GPU: {0}C\r", (int)MaxTemp(computer, HardwareType.GpuAti) + AvgTemp(computer, HardwareType.GpuNvidia));
+            tmp += string.Format("CPU: {0}C\r", (int)MaxTemp(computer, HardwareType.CPU));
+            tmp += string.Format("Mainboard: {0}C\r", (int)MaxTemp(computer, HardwareType.Mainboard));
+            tmp += string.Format("HDD: {0}C\r", (int)MaxTemp(computer, HardwareType.HDD));
+            serial.Write(new byte[]{0});
+            serial.Write(Encoding.ASCII.GetBytes(tmp));
+            serial.Write(new byte[] { 1 });
 
 
-      if (logSensors.Value && delayCount >= 4)
-        logger.Log();
+            /*var gpus = computer.Hardware.Where(x => x.HardwareType == HardwareType.GpuAti || x.HardwareType == HardwareType.GpuNvidia).ToArray();
+            if (gpus.Any())
+            {
+                var gpu = gpus.First();
+                var temps = gpu.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                if (temps.Any())
+                {
+                    var temp = temps.Average(x => x.Value.Value);
+                    tmp += string.Format("gpu: {0}C\r", (int)temp);
+                }
+            }
 
-      if (delayCount < 4)
-        delayCount++;
+            var cpus = computer.Hardware.Where(x => x.HardwareType == HardwareType.CPU).ToArray();
+
+            if (cpus.Any())
+            {
+                var cpu = cpus.First();
+                var temps = cpu.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                if (temps.Any())
+                {
+                    var temp = temps.Average(x => x.Value.Value);
+                    tmp += string.Format("cpu: {0}C\r", (int)temp);
+                }
+            }
+
+            var mainboard = computer.Hardware.Where(x => x.HardwareType == HardwareType.Mainboard).Single();
+            {
+                var temps = mainboard.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                if (temps.Any())
+                {
+                    var temp = temps.Average(x => x.Value.Value);
+                    tmp += string.Format("mainboard: {0}C\r", (int)temp);
+                }
+            }
+
+            var hdds = computer.Hardware.Where(x => x.HardwareType == HardwareType.CPU).ToArray();
+
+            if (hdds.Any())
+            {
+                var cpu = cpus.First();
+                var temps = cpu.Sensors.Where(x => x.SensorType == SensorType.Temperature).ToArray();
+                if (temps.Any())
+                {
+                    var temp = temps.Average(x => x.Value.Value);
+                    tmp += string.Format("hdd: {0}C\r", (int)temp);
+                }
+            }*/
+        }
+
+        treeView.Invalidate();
+        plotPanel.InvalidatePlot();
+        systemTray.Redraw();
+        if (gadget != null)
+            gadget.Redraw();
+
+        if (wmiProvider != null)
+            wmiProvider.Update();
+
+
+        if (logSensors.Value && delayCount >= 4)
+            logger.Log();
+
+        if (delayCount < 4)
+            delayCount++;
     }
 
     private void SaveConfiguration() {
@@ -853,6 +999,14 @@ namespace OpenHardwareMonitor.GUI {
 
     public HttpServer Server {
       get { return server; }
+    }
+    public Serial Serial
+    {
+        get { return serial; }
+    }
+    private void serialConfigMenuItem_Click(object sender, EventArgs e)
+    {
+        new SerialForm(this).ShowDialog();
     }
 
   }
